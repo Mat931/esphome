@@ -3,6 +3,7 @@ import esphome.config_validation as cv
 from esphome.components import esp32_ble_tracker, esp32_ble_client
 from esphome.const import (
     CONF_CHARACTERISTIC_UUID,
+    CONF_DISABLED_BY_DEFAULT,
     CONF_ID,
     CONF_MAC_ADDRESS,
     CONF_NAME,
@@ -66,6 +67,7 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(BLEClient),
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_NAME): cv.string,
+            cv.Optional(CONF_DISABLED_BY_DEFAULT): cv.boolean,
             cv.Optional(CONF_ON_CONNECT): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -239,6 +241,10 @@ async def to_code(config):
     await cg.register_component(var, config)
     await esp32_ble_tracker.register_client(var, config)
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
+
+    if CONF_DISABLED_BY_DEFAULT in config:
+        cg.add(var.set_disabled_by_default(config[CONF_DISABLED_BY_DEFAULT]))
+
     for conf in config.get(CONF_ON_CONNECT, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)

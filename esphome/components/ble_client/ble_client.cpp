@@ -14,7 +14,10 @@ static const char *const TAG = "ble_client";
 
 void BLEClient::setup() {
   BLEClientBase::setup();
-  this->enabled = true;
+
+  if (!this->disabled_by_default_) {
+    this->enabled = true;
+  }
 }
 
 void BLEClient::loop() {

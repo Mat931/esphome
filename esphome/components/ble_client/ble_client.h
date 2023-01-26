@@ -50,6 +50,7 @@ class BLEClient : public BLEClientBase {
   void setup() override;
   void dump_config() override;
   void loop() override;
+  void set_disabled_by_default(bool disabled_by_default) { disabled_by_default_ = disabled_by_default; }
 
   bool gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                            esp_ble_gattc_cb_param_t *param) override;
@@ -70,6 +71,8 @@ class BLEClient : public BLEClientBase {
   void set_state(espbt::ClientState state) override;
 
  protected:
+  bool disabled_by_default_ = false;
+
   bool all_nodes_established_();
 
   std::vector<BLEClientNode *> nodes_;
