@@ -30,6 +30,7 @@ from esphome.const import (
     CONF_MAGNITUDE,
     CONF_WAND_ID,
     CONF_LEVEL,
+    CONF_SPEED,
 )
 from esphome.core import coroutine
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
@@ -1545,3 +1546,274 @@ async def aeha_action(var, config, args):
     template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint16)
     cg.add(var.set_address(template_))
     cg.add(var.set_data(config[CONF_DATA]))
+
+
+# Hob2Hood
+(
+    Hob2HoodData,
+    Hob2HoodBinarySensor,
+    Hob2HoodTrigger,
+    Hob2HoodAction,
+    Hob2HoodDumper,
+) = declare_protocol("Hob2Hood")
+
+Hob2HoodCommand = remote_base_ns.enum("Hob2HoodCommand")
+HOB2HOOD_COMMAND_OPTIONS = {
+    "light_off": Hob2HoodCommand.HOB2HOOD_CMD_LIGHT_OFF,
+    "light_on": Hob2HoodCommand.HOB2HOOD_CMD_LIGHT_ON,
+    "fan_off": Hob2HoodCommand.HOB2HOOD_CMD_FAN_OFF,
+    "fan_low": Hob2HoodCommand.HOB2HOOD_CMD_FAN_LOW,
+    "fan_medium": Hob2HoodCommand.HOB2HOOD_CMD_FAN_MEDIUM,
+    "fan_high": Hob2HoodCommand.HOB2HOOD_CMD_FAN_HIGH,
+    "fan_max": Hob2HoodCommand.HOB2HOOD_CMD_FAN_MAX,
+}
+
+
+HOB2HOOD_SCHEMA = cv.Schema(
+    {cv.Required(CONF_COMMAND): cv.enum(HOB2HOOD_COMMAND_OPTIONS)}
+)
+
+
+@register_binary_sensor("hob2hood", Hob2HoodBinarySensor, HOB2HOOD_SCHEMA)
+def hob2hood_binary_sensor(var, config):
+    cg.add(var.set_command(config[CONF_COMMAND]))
+
+
+@register_trigger("hob2hood", Hob2HoodTrigger, Hob2HoodData)
+def hob2hood_trigger(var, config):
+    pass
+
+
+@register_dumper("hob2hood", Hob2HoodDumper)
+def hob2hood_dumper(var, config):
+    pass
+
+
+@register_action("hob2hood", Hob2HoodAction, HOB2HOOD_SCHEMA)
+async def abbwelcome_action(var, config, args):
+    cg.add(var.set_command(await cg.templatable(config[CONF_COMMAND], args, cg.uint8)))
+
+
+# ABBWelcome
+(
+    ABBWelcomeData,
+    ABBWelcomeBinarySensor,
+    ABBWelcomeTrigger,
+    ABBWelcomeAction,
+    ABBWelcomeDumper,
+) = declare_protocol("ABBWelcome")
+
+CONF_SOURCE_ADDRESS = "source_address"
+CONF_DESTINATION_ADDRESS = "destination_address"
+CONF_MESSAGE_TYPE = "message_type"
+CONF_MESSAGE_ID = "message_id"
+CONF_RETRANSMISSION = "retransmission"
+
+ABB_WELCOME_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_SOURCE_ADDRESS): cv.hex_uint16_t,
+        cv.Required(CONF_DESTINATION_ADDRESS): cv.hex_uint16_t,
+        cv.Optional(CONF_RETRANSMISSION, default=False): cv.boolean,
+        cv.Required(CONF_MESSAGE_TYPE): cv.Any(cv.hex_uint8_t, cv.uint8_t),
+        cv.Optional(CONF_MESSAGE_ID): cv.Any(cv.hex_uint8_t, cv.uint8_t),
+        cv.Optional(CONF_DATA): cv.All(
+            [cv.Any(cv.hex_uint8_t, cv.uint8_t)],
+            cv.Length(min=0, max=7),
+        ),
+    }
+)
+
+
+@register_binary_sensor("abbwelcome", ABBWelcomeBinarySensor, ABB_WELCOME_SCHEMA)
+def abbwelcome_binary_sensor(var, config):
+    cg.add(var.set_source_address(config[CONF_SOURCE_ADDRESS]))
+    cg.add(var.set_destination_address(config[CONF_DESTINATION_ADDRESS]))
+    cg.add(var.set_retransmission(config[CONF_RETRANSMISSION]))
+    cg.add(var.set_message_type(config[CONF_MESSAGE_TYPE]))
+    cg.add(var.set_auto_message_id(CONF_MESSAGE_ID not in config))
+    if CONF_MESSAGE_ID in config:
+        cg.add(var.set_message_id(config[CONF_MESSAGE_ID]))
+    if CONF_DATA in config:
+        cg.add(var.set_data(config[CONF_DATA]))
+    cg.add(var.finalize())
+
+
+@register_trigger("abbwelcome", ABBWelcomeTrigger, ABBWelcomeData)
+def abbwelcome_trigger(var, config):
+    pass
+
+
+@register_dumper("abbwelcome", ABBWelcomeDumper)
+def abbwelcome_dumper(var, config):
+    pass
+
+
+@register_action("abbwelcome", ABBWelcomeAction, ABB_WELCOME_SCHEMA)
+async def abbwelcome_action(var, config, args):
+    cg.add(
+        var.set_source_address(
+            await cg.templatable(config[CONF_SOURCE_ADDRESS], args, cg.uint16)
+        )
+    )
+    cg.add(
+        var.set_destination_address(
+            await cg.templatable(config[CONF_DESTINATION_ADDRESS], args, cg.uint16)
+        )
+    )
+    cg.add(
+        var.set_retransmission(
+            await cg.templatable(config[CONF_RETRANSMISSION], args, cg.bool_)
+        )
+    )
+    cg.add(
+        var.set_message_type(
+            await cg.templatable(config[CONF_MESSAGE_TYPE], args, cg.uint8)
+        )
+    )
+    cg.add(var.set_auto_message_id(CONF_MESSAGE_ID not in config))
+    if CONF_MESSAGE_ID in config:
+        cg.add(
+            var.set_message_id(
+                await cg.templatable(config[CONF_MESSAGE_ID], args, cg.uint8)
+            )
+        )
+    if CONF_DATA in config:
+        data_ = config[CONF_DATA]
+        if cg.is_template(data_):
+            template_ = await cg.templatable(
+                data_, args, cg.std_vector.template(cg.uint8)
+            )
+            cg.add(var.set_data_template(template_))
+        else:
+            cg.add(var.set_data_static(data_))
+
+
+# TR502MSV
+(
+    TR502MSVData,
+    TR502MSVBinarySensor,
+    TR502MSVTrigger,
+    TR502MSVAction,
+    TR502MSVDumper,
+) = declare_protocol("TR502MSV")
+TR502MSVCommand = remote_base_ns.enum("TR502MSVCommand")
+TR502MSV_COMMAND_OPTIONS = {
+    "turn_off": TR502MSVCommand.COMMAND_OFF,
+    "turn_on": TR502MSVCommand.COMMAND_ON,
+    "increase_brightness": TR502MSVCommand.COMMAND_INCREASE_BRIGHTNESS,
+    "decrease_brightness": TR502MSVCommand.COMMAND_DECREASE_BRIGHTNESS,
+}
+
+TR502MSVDevice = remote_base_ns.enum("TR502MSVDevice")
+TR502MSV_DEVICE_OPTIONS = {
+    1: TR502MSVDevice.DEVICE_1,
+    2: TR502MSVDevice.DEVICE_2,
+    3: TR502MSVDevice.DEVICE_3,
+    4: TR502MSVDevice.DEVICE_4,
+    "all": TR502MSVDevice.DEVICE_ALL,
+}
+
+TR502MSV_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_GROUP): cv.All(cv.hex_int, cv.Range(min=0, max=0xFFF)),
+        cv.Required(CONF_DEVICE): cv.enum(TR502MSV_DEVICE_OPTIONS),
+        cv.Required(CONF_COMMAND): cv.enum(TR502MSV_COMMAND_OPTIONS),
+    }
+)
+
+
+@register_binary_sensor("tr_502msv", TR502MSVBinarySensor, TR502MSV_SCHEMA)
+def tr_502msv_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                TR502MSVData,
+                ("group", config[CONF_GROUP]),
+                ("device", config[CONF_DEVICE]),
+                ("command", config[CONF_COMMAND]),
+            )
+        )
+    )
+
+
+@register_trigger("tr_502msv", TR502MSVTrigger, TR502MSVData)
+def tr_502msv_trigger(var, config):
+    pass
+
+
+@register_dumper("tr_502msv", TR502MSVDumper)
+def tr_502msv_dumper(var, config):
+    pass
+
+
+@register_action("tr_502msv", TR502MSVAction, TR502MSV_SCHEMA)
+def tr_502msv_action(var, config, args):
+    cg.add(var.set_group((yield cg.templatable(config[CONF_GROUP], args, cg.uint16))))
+    cg.add(var.set_device((yield cg.templatable(config[CONF_DEVICE], args, cg.uint8))))
+    cg.add(
+        var.set_command((yield cg.templatable(config[CONF_COMMAND], args, cg.uint8)))
+    )
+
+
+# VirtualWire
+(
+    VirtualWireData,
+    VirtualWireBinarySensor,
+    VirtualWireTrigger,
+    VirtualWireAction,
+    VirtualWireDumper,
+) = declare_protocol("VirtualWire")
+
+VIRTUALWIRE_TRANSMITTER_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_SPEED, default=2000): cv.int_range(min=300, max=65535),
+        cv.Required(CONF_DATA): cv.All(
+            [cv.Any(cv.hex_uint8_t, cv.uint8_t)],
+            cv.Length(min=1, max=77),
+        ),
+    }
+)
+
+VIRTUALWIRE_RECEIVER_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_SPEED, default=0): cv.Any(
+            cv.int_range(min=300, max=65535), cv.int_range(0, 0)
+        ),
+        cv.Required(CONF_DATA): cv.All(
+            [cv.Any(cv.hex_uint8_t, cv.uint8_t)],
+            cv.Length(min=1, max=77),
+        ),
+    }
+)
+
+
+@register_binary_sensor(
+    "virtualwire", VirtualWireBinarySensor, VIRTUALWIRE_RECEIVER_SCHEMA
+)
+def virtualwire_binary_sensor(var, config):
+    cg.add(var.set_speed(config[CONF_SPEED]))
+    cg.add(var.set_data(config[CONF_DATA]))
+    cg.add(var.finalize())
+
+
+@register_trigger("virtualwire", VirtualWireTrigger, VirtualWireData)
+def virtualwire_trigger(var, config):
+    pass
+
+
+@register_dumper("virtualwire", VirtualWireDumper)
+def virtualwire_dumper(var, config):
+    pass
+
+
+@register_action("virtualwire", VirtualWireAction, VIRTUALWIRE_TRANSMITTER_SCHEMA)
+async def virtualwire_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_SPEED], args, cg.uint16)
+    cg.add(var.set_speed(template_))
+
+    data_ = config[CONF_DATA]
+    if cg.is_template(data_):
+        template_ = await cg.templatable(data_, args, cg.std_vector.template(cg.uint8))
+        cg.add(var.set_data_template(template_))
+    else:
+        cg.add(var.set_data_static(data_))

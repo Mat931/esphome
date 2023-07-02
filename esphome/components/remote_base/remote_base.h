@@ -15,6 +15,11 @@
 namespace esphome {
 namespace remote_base {
 
+enum ToleranceMode : uint8_t {
+  TOLERANCE_MODE_PERCENTAGE = 0,
+  TOLERANCE_MODE_TIME = 1,
+};
+
 class RemoteTransmitData {
  public:
   void mark(uint32_t length) { this->data_.push_back(length); }
@@ -57,24 +62,33 @@ class RemoteTransmitData {
 
 class RemoteReceiveData {
  public:
-  RemoteReceiveData(std::vector<int32_t> *data, uint8_t tolerance) : data_(data), tolerance_(tolerance) {}
+  RemoteReceiveData(std::vector<int32_t> *data, uint32_t tolerance, ToleranceMode tolerance_mode)
+      : data_(data), tolerance_(tolerance), tolerance_mode_(tolerance_mode) {}
 
-  bool peek_mark(uint32_t length, uint32_t offset = 0) {
+  bool peek_mark(int32_t min_length, int32_t max_length, uint32_t offset) {
     if (int32_t(this->index_ + offset) >= this->size())
       return false;
     int32_t value = this->peek(offset);
+    return value >= 0 && min_length <= value && value <= max_length;
+  }
+
+  bool peek_mark(uint32_t length, uint32_t offset = 0) {
     const int32_t lo = this->lower_bound_(length);
     const int32_t hi = this->upper_bound_(length);
-    return value >= 0 && lo <= value && value <= hi;
+    return peek_mark(lo, hi, offset);
+  }
+
+  bool peek_space(int32_t min_length, int32_t max_length, uint32_t offset) {
+    if (int32_t(this->index_ + offset) >= this->size())
+      return false;
+    int32_t value = this->peek(offset);
+    return value <= 0 && min_length <= -value && -value <= max_length;
   }
 
   bool peek_space(uint32_t length, uint32_t offset = 0) {
-    if (int32_t(this->index_ + offset) >= this->size())
-      return false;
-    int32_t value = this->peek(offset);
     const int32_t lo = this->lower_bound_(length);
     const int32_t hi = this->upper_bound_(length);
-    return value <= 0 && lo <= -value && -value <= hi;
+    return peek_space(lo, hi, offset);
   }
 
   bool peek_space_at_least(uint32_t length, uint32_t offset = 0) {
@@ -101,8 +115,24 @@ class RemoteReceiveData {
     return false;
   }
 
+  bool expect_mark(int32_t min_length, int32_t max_length) {
+    if (this->peek_mark(min_length, max_length, 0)) {
+      this->advance();
+      return true;
+    }
+    return false;
+  }
+
   bool expect_space(uint32_t length) {
     if (this->peek_space(length)) {
+      this->advance();
+      return true;
+    }
+    return false;
+  }
+
+  bool expect_space(int32_t min_length, int32_t max_length) {
+    if (this->peek_space(min_length, max_length, 0)) {
       this->advance();
       return true;
     }
@@ -137,13 +167,29 @@ class RemoteReceiveData {
 
   std::vector<int32_t> *get_raw_data() { return this->data_; }
 
+  void set_tolerance(uint32_t tolerance, ToleranceMode tolerance_mode) {
+    tolerance_ = tolerance;
+    tolerance_mode_ = tolerance_mode;
+  }
+
+  uint32_t get_tolerance() { return tolerance_; }
+
+  ToleranceMode get_tolerance_mode() { return tolerance_mode_; }
+
  protected:
-  int32_t lower_bound_(uint32_t length) { return int32_t(100 - this->tolerance_) * length / 100U; }
-  int32_t upper_bound_(uint32_t length) { return int32_t(100 + this->tolerance_) * length / 100U; }
+  int32_t lower_bound_(uint32_t length) {
+    return (tolerance_mode_ == TOLERANCE_MODE_TIME) ? int32_t(length - this->tolerance_)
+                                                    : int32_t(100 - this->tolerance_) * length / 100U;
+  }
+  int32_t upper_bound_(uint32_t length) {
+    return (tolerance_mode_ == TOLERANCE_MODE_TIME) ? int32_t(length + this->tolerance_)
+                                                    : int32_t(100 + this->tolerance_) * length / 100U;
+  }
 
   uint32_t index_{0};
   std::vector<int32_t> *data_;
-  uint8_t tolerance_;
+  uint32_t tolerance_;
+  ToleranceMode tolerance_mode_;
 };
 
 template<typename T> class RemoteProtocol {
@@ -241,13 +287,16 @@ class RemoteReceiverBase : public RemoteComponentBase {
       this->dumpers_.push_back(dumper);
     }
   }
-  void set_tolerance(uint8_t tolerance) { tolerance_ = tolerance; }
+  void set_tolerance(uint32_t tolerance, ToleranceMode tolerance_mode) {
+    tolerance_ = tolerance;
+    tolerance_mode_ = tolerance_mode;
+  }
 
  protected:
   bool call_listeners_() {
     bool success = false;
     for (auto *listener : this->listeners_) {
-      auto data = RemoteReceiveData(&this->temp_, this->tolerance_);
+      auto data = RemoteReceiveData(&this->temp_, this->tolerance_, this->tolerance_mode_);
       if (listener->on_receive(data))
         success = true;
     }
@@ -256,13 +305,13 @@ class RemoteReceiverBase : public RemoteComponentBase {
   void call_dumpers_() {
     bool success = false;
     for (auto *dumper : this->dumpers_) {
-      auto data = RemoteReceiveData(&this->temp_, this->tolerance_);
+      auto data = RemoteReceiveData(&this->temp_, this->tolerance_, this->tolerance_mode_);
       if (dumper->dump(data))
         success = true;
     }
     if (!success) {
       for (auto *dumper : this->secondary_dumpers_) {
-        auto data = RemoteReceiveData(&this->temp_, this->tolerance_);
+        auto data = RemoteReceiveData(&this->temp_, this->tolerance_, this->tolerance_mode_);
         dumper->dump(data);
       }
     }
@@ -278,7 +327,8 @@ class RemoteReceiverBase : public RemoteComponentBase {
   std::vector<RemoteReceiverDumperBase *> dumpers_;
   std::vector<RemoteReceiverDumperBase *> secondary_dumpers_;
   std::vector<int32_t> temp_;
-  uint8_t tolerance_{25};
+  uint32_t tolerance_{25};
+  ToleranceMode tolerance_mode_{TOLERANCE_MODE_PERCENTAGE};
 };
 
 class RemoteReceiverBinarySensorBase : public binary_sensor::BinarySensorInitiallyOff,
