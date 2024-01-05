@@ -121,7 +121,7 @@ class ABBWelcomeData {
   uint8_t get_message_id() const { return this->data_[4 + 2 * this->get_address_length()]; }
   void set_data(std::vector<uint8_t> data) {
     uint8_t size = std::min(MAX_DATA_LENGTH, static_cast<uint8_t>(data.size()));
-    this->data_[2] &= 0x80;
+    this->data_[2] &= (0xff ^ DATA_LENGTH_MASK);
     this->data_[2] |= (size & DATA_LENGTH_MASK);
     if (size)
       std::copy_n(data.begin(), size, this->data_.begin() + 5 + 2 * this->get_address_length());
